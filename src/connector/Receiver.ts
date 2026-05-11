@@ -1,11 +1,7 @@
 import type { Socket } from "node:net";
 import * as iconv from "iconv-lite";
-import debug from "debug";
 import { RosException } from "../RosException.ts";
-import { Buffer } from "node:buffer";
-
-const info = debug("routeros-api:connector:receiver:info");
-const nullBuffer = Buffer.from([0x00]);
+import { logger } from "../logger.ts";
 
 export interface ISentence {
     sentence: string;
@@ -78,7 +74,7 @@ export class Receiver {
      * length descriptor if it gets split
      * between tcp transmissions.
      */
-    private lengthDescriptorSegment: Buffer | null = null;
+    private lengthDescriptorSegment: Uint8Array<ArrayBuffer> | null = null;
 
     /**
      * Receives the socket so we are able to read
@@ -101,7 +97,7 @@ export class Receiver {
      * @param {function} callback
      */
     public read(tag: string, callback: (packet: string[]) => void): void {
-        info("Reader of %s tag is being set", tag);
+        logger.debug("Reader of {tag} tag is being set", { tag });
         this.tags.set(tag, {
             name: tag,
             callback: callback,
@@ -117,7 +113,7 @@ export class Receiver {
      * @param {string} tag
      */
     public stop(tag: string): void {
-        info("Not reading from %s tag anymore", tag);
+        logger.debug("Not reading from {tag} tag anymore", { tag });
         this.tags.delete(tag);
     }
 
@@ -129,11 +125,11 @@ export class Receiver {
      * After reading each sentence from the raw packet, sends it
      * to be parsed
      *
-     * @param {Buffer} data
+     * @param {Uint8Array<ArrayBuffer>} data
      */
-    public processRawData(data: Buffer): void {
+    public processRawData(data: Uint8Array<ArrayBuffer>): void {
         if (this.lengthDescriptorSegment) {
-            data = Buffer.concat([this.lengthDescriptorSegment, data]);
+            data = new Uint8Array([...this.lengthDescriptorSegment, ...data]);
             this.lengthDescriptorSegment = null;
         }
 
@@ -206,7 +202,7 @@ export class Receiver {
                     data = data.slice(descriptor_length);
 
                     // If we only desire one more and its the end of the sentance...
-                    if (this.dataLength === 1 && data.equals(nullBuffer)) {
+                    if (this.dataLength === 1 && data[0] == 0) {
                         this.dataLength = 0;
                         data = data.slice(1); // get rid of excess buffer
                     }
@@ -229,7 +225,7 @@ export class Receiver {
                 // slice off the bytes used to describe the length
                 data = data.slice(descriptor_length);
 
-                if (this.dataLength === 1 && data.equals(nullBuffer)) {
+                if (this.dataLength === 1 && data[0] == 0) {
                     this.dataLength = 0;
                     data = data.slice(1); // get rid of excess buffer
                 }
@@ -246,7 +242,7 @@ export class Receiver {
      */
     private processSentence(): void {
         if (!this.processingSentencePipe) {
-            info("Got asked to process sentence pipe");
+            logger.debug("Got asked to process sentence pipe");
 
             this.processingSentencePipe = true;
 
@@ -259,15 +255,17 @@ export class Receiver {
                         return;
                     }
 
-                    info("Processing line %s", line.sentence);
+                    logger.debug("Processing line {sentence}", {
+                        sentence: line.sentence,
+                    });
 
                     if (/^\.tag=/.test(line.sentence)) {
                         this.currentTag = line.sentence.substring(5);
                     } else if (/^!/.test(line.sentence)) {
                         if (this.currentTag) {
-                            info(
-                                "Received another response, sending current data to tag %s",
-                                this.currentTag,
+                            logger.debug(
+                                "Received another response, sending current data to tag {tag}",
+                                { tag: this.currentTag },
                             );
                             this.sendTagData(this.currentTag);
                         }
@@ -282,13 +280,16 @@ export class Receiver {
                         this.dataLength === 0
                     ) {
                         if (!line.hadMore && this.currentTag) {
-                            info(
-                                "No more sentences to process, will send data to tag %s",
-                                this.currentTag,
+                            logger.debug(
+                                "No more sentences to process, will send data to tag {tag}",
+                                { tag: this.currentTag },
                             );
                             this.sendTagData(this.currentTag);
                         } else {
-                            info("No more sentences and no data to send");
+                            logger.debug(
+                                "No more sentences and no data to send",
+                                { tag: this.currentTag },
+                            );
                         }
                         this.processingSentencePipe = false;
                     } else {
@@ -310,10 +311,9 @@ export class Receiver {
     private sendTagData(currentTag: string): void {
         const tag = this.tags.get(currentTag);
         if (tag) {
-            info(
-                "Sending to tag %s the packet %O",
-                tag.name,
-                this.currentPacket,
+            logger.debug(
+                "Sending to tag {tag} the packet {packet}",
+                { tag: tag.name, packet: this.currentPacket },
             );
             tag.callback(this.currentPacket);
         } else {
@@ -338,9 +338,9 @@ export class Receiver {
      * Credits for George Joseph: https://github.com/gtjoseph
      * and for Brandon Myers: https://github.com/Trakkasure
      *
-     * @param {Buffer} data
+     * @param {Uint8Array<ArrayBuffer>} data
      */
-    private decodeLength(data: Buffer): number[] {
+    private decodeLength(data: Uint8Array<ArrayBuffer>): number[] {
         let len;
         let idx = 0;
         const b = data[idx++];

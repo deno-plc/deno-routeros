@@ -4,7 +4,6 @@ import * as tls from "node:tls";
 import { Receiver } from "./Receiver.ts";
 import { Transmitter } from "./Transmitter.ts";
 import { RosException } from "../RosException.ts";
-import type { Buffer } from "node:buffer";
 import { logger } from "../logger.ts";
 
 /**
@@ -252,7 +251,7 @@ export class Connector extends EventEmitter {
      *
      * @returns {function}
      */
-    private onData(data: Buffer): void {
+    private onData(data: Uint8Array<ArrayBuffer>): void {
         logger.debug("Got data from the socket, will process it");
         this.receiver!.processRawData(data);
     }

@@ -1,6 +1,5 @@
 import type { Socket } from "node:net";
 import * as iconv from "iconv-lite";
-import { Buffer } from "node:buffer";
 import { logger } from "../logger.ts";
 
 /**
@@ -16,7 +15,7 @@ export class Transmitter {
     /**
      * Pool of data to be sent after the socket connects
      */
-    private pool: (Buffer<ArrayBuffer> | string)[] = [];
+    private pool: (Uint8Array<ArrayBuffer> | string)[] = [];
 
     /**
      * Constructor
@@ -72,7 +71,7 @@ export class Transmitter {
      *
      * @param {string} str
      */
-    private encodeString(str: string): Buffer<ArrayBuffer> | string {
+    private encodeString(str: string): Uint8Array<ArrayBuffer> | string {
         if (str === null) return String.fromCharCode(0);
 
         const encoded = iconv.encode(str, "win1252");
@@ -82,28 +81,28 @@ export class Transmitter {
         let offset = 0;
 
         if (len < 0x80) {
-            data = Buffer.alloc(len + 1);
+            data = new Uint8Array(len + 1);
             data[offset++] = len;
         } else if (len < 0x4000) {
-            data = Buffer.alloc(len + 2);
+            data = new Uint8Array(len + 2);
             len |= 0x8000;
             data[offset++] = (len >> 8) & 0xff;
             data[offset++] = len & 0xff;
         } else if (len < 0x200000) {
-            data = Buffer.alloc(len + 3);
+            data = new Uint8Array(len + 3);
             len |= 0xc00000;
             data[offset++] = (len >> 16) & 0xff;
             data[offset++] = (len >> 8) & 0xff;
             data[offset++] = len & 0xff;
         } else if (len < 0x10000000) {
-            data = Buffer.alloc(len + 4);
+            data = new Uint8Array(len + 4);
             len |= 0xe0000000;
             data[offset++] = (len >> 24) & 0xff;
             data[offset++] = (len >> 16) & 0xff;
             data[offset++] = (len >> 8) & 0xff;
             data[offset++] = len & 0xff;
         } else {
-            data = Buffer.alloc(len + 5);
+            data = new Uint8Array(len + 5);
             data[offset++] = 0xf0;
             data[offset++] = (len >> 24) & 0xff;
             data[offset++] = (len >> 16) & 0xff;
@@ -111,7 +110,7 @@ export class Transmitter {
             data[offset++] = len & 0xff;
         }
 
-        data.fill(encoded, offset);
+        data.set(encoded, offset);
         return data;
     }
 }
