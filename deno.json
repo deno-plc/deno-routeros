@@ -1,6 +1,6 @@
 {
-    "name": "@deno-plc/deno-routeros",
-    "version": "1.0.1",
+    "name": "@deno-plc/routeros",
+    "version": "1.0.0",
     "description": "Mikrotik Routerboard RouterOS API for Deno",
     "license": "MIT",
     "tasks": {
