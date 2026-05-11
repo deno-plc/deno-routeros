@@ -1,11 +1,8 @@
-import { EventEmitter } from 'events';
-import { Connector } from './connector/Connector';
-import { RosException } from './RosException';
-import * as debug from 'debug';
-import { IRosGenericResponse } from './IRosGenericResponse';
-
-const info = debug('routeros-api:channel:info');
-const error = debug('routeros-api:channel:error');
+import { EventEmitter } from "node:events";
+import type { Connector } from "./connector/Connector.ts";
+import { RosException } from "./RosException.ts";
+import type { IRosGenericResponse } from "./IRosGenericResponse.ts";
+import { logger } from "./logger.ts";
 
 /**
  * Channel class is responsible for generating
@@ -48,7 +45,7 @@ export class Channel extends EventEmitter {
         super();
         this.id = Math.random().toString(36).substring(3);
         this.connector = connector;
-        this.once('unknown', this.onUnknown.bind(this));
+        this.once("unknown", this.onUnknown.bind(this));
     }
 
     /**
@@ -81,17 +78,17 @@ export class Channel extends EventEmitter {
         params: string[],
         isStream = false,
         returnPromise = true,
-    ): Promise<IRosGenericResponse[]> {
+    ): Promise<IRosGenericResponse[]> | undefined {
         this.streaming = isStream;
 
-        params.push('.tag=' + this.id);
+        params.push(".tag=" + this.id);
 
         if (returnPromise) {
-            this.on('data', (packet: object) => this.data.push(packet));
+            this.on("data", (packet: object) => this.data.push(packet));
 
             return new Promise((resolve, reject) => {
-                this.once('done', (data) => resolve(data));
-                this.once('trap', (data) => reject(new Error(data.message)));
+                this.once("done", (data) => resolve(data));
+                this.once("trap", (data) => reject(new Error(data.message)));
 
                 this.readAndWrite(params);
             });
@@ -109,7 +106,7 @@ export class Channel extends EventEmitter {
      * @param {boolean} force - force closing by removing all listeners
      */
     public close(force = false): void {
-        this.emit('close');
+        this.emit("close");
         if (!this.streaming || force) {
             this.removeAllListeners();
         }
@@ -123,8 +120,9 @@ export class Channel extends EventEmitter {
      * @param {Array} params
      */
     private readAndWrite(params: string[]): void {
-        this.connector.read(this.id, (packet: string[]) =>
-            this.processPacket(packet),
+        this.connector.read(
+            this.id,
+            (packet: string[]) => this.processPacket(packet),
         );
         this.connector.write(params);
     }
@@ -141,28 +139,31 @@ export class Channel extends EventEmitter {
     private processPacket(packet: string[]): void {
         const reply = packet.shift();
 
-        info('Processing reply %s with data %o', reply, packet);
+        logger.debug("Processing reply {reply} with data {packet}", {
+            reply,
+            packet,
+        });
 
         const parsed = this.parsePacket(packet);
 
-        if (reply === '!trap') {
+        if (reply === "!trap") {
             this.trapped = true;
-            this.emit('trap', parsed);
+            this.emit("trap", parsed);
             return;
         }
 
-        if (packet.length > 0 && !this.streaming) this.emit('data', parsed);
+        if (packet.length > 0 && !this.streaming) this.emit("data", parsed);
 
         switch (reply) {
-            case '!re':
-                if (this.streaming) this.emit('stream', parsed);
+            case "!re":
+                if (this.streaming) this.emit("stream", parsed);
                 break;
-            case '!done':
-                if (!this.trapped) this.emit('done', this.data);
+            case "!done":
+                if (!this.trapped) this.emit("done", this.data);
                 this.close();
                 break;
             default:
-                this.emit('unknown', reply);
+                this.emit("unknown", reply);
                 this.close();
                 break;
         }
@@ -176,13 +177,13 @@ export class Channel extends EventEmitter {
      * @return {Object}
      */
     private parsePacket(packet: string[]): object {
-        const obj = {};
+        const obj: Record<string, string> = {};
         for (const line of packet) {
-            const linePair = line.split('=');
+            const linePair = line.split("=");
             linePair.shift(); // remove empty index
-            obj[linePair.shift()] = linePair.join('=');
+            obj[linePair.shift()!] = linePair.join("=");
         }
-        info('Parsed line, got %o as result', obj);
+        logger.debug("Parsed line, got %o as result", obj);
         return obj;
     }
 
@@ -195,6 +196,6 @@ export class Channel extends EventEmitter {
      * @returns {function}
      */
     private onUnknown(reply: string): void {
-        throw new RosException('UNKNOWNREPLY', { reply: reply });
+        throw new RosException("UNKNOWNREPLY", { reply: reply });
     }
 }

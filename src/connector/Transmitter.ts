@@ -1,9 +1,7 @@
-import { Socket } from 'net';
-import * as iconv from 'iconv-lite';
-import * as debug from 'debug';
-
-const info = debug('routeros-api:connector:transmitter:info');
-const error = debug('routeros-api:connector:transmitter:error');
+import type { Socket } from "node:net";
+import * as iconv from "iconv-lite";
+import { Buffer } from "node:buffer";
+import { logger } from "../logger.ts";
 
 /**
  * Class responsible for transmitting data over the
@@ -18,7 +16,7 @@ export class Transmitter {
     /**
      * Pool of data to be sent after the socket connects
      */
-    private pool: string[] = [];
+    private pool: (Buffer<ArrayBuffer> | string)[] = [];
 
     /**
      * Constructor
@@ -38,10 +36,14 @@ export class Transmitter {
     public write(data: string): void {
         const encodedData = this.encodeString(data);
         if (!this.socket.writable || this.pool.length > 0) {
-            info('Socket not writable, saving %o in the pool', data);
+            logger.debug("Socket not writable, saving {command} in the pool", {
+                command: data,
+            });
             this.pool.push(encodedData);
         } else {
-            info('Writing command %s over the socket', data);
+            logger.debug("Writing command {command} over the socket", {
+                command: data,
+            });
             this.socket.write(encodedData);
         }
     }
@@ -50,10 +52,10 @@ export class Transmitter {
      * Writes all data stored in the pool
      */
     public runPool(): void {
-        info('Running stacked command pool');
+        logger.debug("Running stacked command pool");
         let data;
         while (this.pool.length > 0) {
-            data = this.pool.shift();
+            data = this.pool.shift()!;
             this.socket.write(data);
         }
     }
@@ -70,10 +72,10 @@ export class Transmitter {
      *
      * @param {string} str
      */
-    private encodeString(str: string): string {
+    private encodeString(str: string): Buffer<ArrayBuffer> | string {
         if (str === null) return String.fromCharCode(0);
 
-        const encoded = iconv.encode(str, 'win1252');
+        const encoded = iconv.encode(str, "win1252");
 
         let data;
         let len = encoded.length;

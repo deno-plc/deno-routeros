@@ -1,13 +1,8 @@
-if (process.env.ENV === 'testing') {
-    const sourceMapSupport = require('source-map-support');
-    sourceMapSupport.install();
-}
-
-export * from './RouterOSAPI';
-export * from './connector/Connector';
-export * from './connector/Receiver';
-export * from './connector/Transmitter';
-export * from './Channel';
-export * from './IRosOptions';
-export * from './RosException';
-export * from './RStream';
+export * from "./RouterOSAPI.ts";
+export * from "./connector/Connector.ts";
+export * from "./connector/Receiver.ts";
+export * from "./connector/Transmitter.ts";
+export * from "./Channel.ts";
+export * from "./IRosOptions.ts";
+export * from "./RosException.ts";
+export * from "./RStream.ts";

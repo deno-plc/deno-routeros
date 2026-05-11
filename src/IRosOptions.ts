@@ -1,4 +1,4 @@
-import { TlsOptions } from 'tls';
+import type { TlsOptions } from "node:tls";
 
 /**
  * Crendential options needed for instantiating

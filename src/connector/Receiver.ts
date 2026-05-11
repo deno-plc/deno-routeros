@@ -1,10 +1,10 @@
-import { Socket } from 'net';
-import * as iconv from 'iconv-lite';
-import * as debug from 'debug';
-import { RosException } from '../RosException';
+import type { Socket } from "node:net";
+import * as iconv from "iconv-lite";
+import debug from "debug";
+import { RosException } from "../RosException.ts";
+import { Buffer } from "node:buffer";
 
-const info = debug('routeros-api:connector:receiver:info');
-const error = debug('routeros-api:connector:receiver:error');
+const info = debug("routeros-api:connector:receiver:info");
 const nullBuffer = Buffer.from([0x00]);
 
 export interface ISentence {
@@ -56,17 +56,17 @@ export class Receiver {
     /**
      * The current line being processed from the data chain
      */
-    private currentLine: string = '';
+    private currentLine: string = "";
 
     /**
      * The current reply received for the tag
      */
-    private currentReply: string = '';
+    private currentReply: string | null = "";
 
     /**
      * The current tag which the routerboard responded
      */
-    private currentTag: string = '';
+    private currentTag: string | null = "";
 
     /**
      * The current data chain or packet
@@ -78,7 +78,7 @@ export class Receiver {
      * length descriptor if it gets split
      * between tcp transmissions.
      */
-    private lengthDescriptorSegment: Buffer;
+    private lengthDescriptorSegment: Buffer | null = null;
 
     /**
      * Receives the socket so we are able to read
@@ -101,7 +101,7 @@ export class Receiver {
      * @param {function} callback
      */
     public read(tag: string, callback: (packet: string[]) => void): void {
-        info('Reader of %s tag is being set', tag);
+        info("Reader of %s tag is being set", tag);
         this.tags.set(tag, {
             name: tag,
             callback: callback,
@@ -117,7 +117,7 @@ export class Receiver {
      * @param {string} tag
      */
     public stop(tag: string): void {
-        info('Not reading from %s tag anymore', tag);
+        info("Not reading from %s tag anymore", tag);
         this.tags.delete(tag);
     }
 
@@ -149,7 +149,7 @@ export class Receiver {
                     this.dataLength -= data.length;
 
                     // Add this data to our current line
-                    this.currentLine += iconv.decode(data, 'win1252');
+                    this.currentLine += iconv.decode(data, "win1252");
 
                     // If there is no more desired data we want...
                     if (this.dataLength === 0) {
@@ -161,7 +161,7 @@ export class Receiver {
 
                         // process the sentance and clear the line
                         this.processSentence();
-                        this.currentLine = '';
+                        this.currentLine = "";
                     }
 
                     // Break out of processRawData and wait for the next
@@ -174,7 +174,7 @@ export class Receiver {
                     const tmpBuffer = data.slice(0, this.dataLength);
 
                     // decode this segment
-                    const tmpStr = iconv.decode(tmpBuffer, 'win1252');
+                    const tmpStr = iconv.decode(tmpBuffer, "win1252");
 
                     // Add this to our current line
                     this.currentLine += tmpStr;
@@ -183,7 +183,7 @@ export class Receiver {
                     const line = this.currentLine;
 
                     // clear the current line
-                    this.currentLine = '';
+                    this.currentLine = "";
 
                     // cut off the line we just pulled out
                     data = data.slice(this.dataLength);
@@ -243,31 +243,30 @@ export class Receiver {
      * Detects the .tag of the packet, sending the data to the
      * related tag when another reply is detected or if
      * the packet had no more lines to be processed.
-     *
      */
     private processSentence(): void {
         if (!this.processingSentencePipe) {
-            info('Got asked to process sentence pipe');
+            info("Got asked to process sentence pipe");
 
             this.processingSentencePipe = true;
 
             const process = () => {
                 if (this.sentencePipe.length > 0) {
-                    const line = this.sentencePipe.shift();
+                    const line = this.sentencePipe.shift()!;
 
-                    if (!line.hadMore && this.currentReply === '!fatal') {
-                        this.socket.emit('fatal');
+                    if (!line.hadMore && this.currentReply === "!fatal") {
+                        this.socket.emit("fatal");
                         return;
                     }
 
-                    info('Processing line %s', line.sentence);
+                    info("Processing line %s", line.sentence);
 
                     if (/^\.tag=/.test(line.sentence)) {
                         this.currentTag = line.sentence.substring(5);
                     } else if (/^!/.test(line.sentence)) {
                         if (this.currentTag) {
                             info(
-                                'Received another response, sending current data to tag %s',
+                                "Received another response, sending current data to tag %s",
                                 this.currentTag,
                             );
                             this.sendTagData(this.currentTag);
@@ -284,12 +283,12 @@ export class Receiver {
                     ) {
                         if (!line.hadMore && this.currentTag) {
                             info(
-                                'No more sentences to process, will send data to tag %s',
+                                "No more sentences to process, will send data to tag %s",
                                 this.currentTag,
                             );
                             this.sendTagData(this.currentTag);
                         } else {
-                            info('No more sentences and no data to send');
+                            info("No more sentences and no data to send");
                         }
                         this.processingSentencePipe = false;
                     } else {
@@ -312,13 +311,13 @@ export class Receiver {
         const tag = this.tags.get(currentTag);
         if (tag) {
             info(
-                'Sending to tag %s the packet %O',
+                "Sending to tag %s the packet %O",
                 tag.name,
                 this.currentPacket,
             );
             tag.callback(this.currentPacket);
         } else {
-            throw new RosException('UNREGISTEREDTAG');
+            throw new RosException("UNREGISTEREDTAG");
         }
         this.cleanUp();
     }

@@ -1,5 +1,5 @@
-export const debounce = (callback, timeout = 0) => {
-    let timeoutObj = null;
+export const debounce = (callback: (...args: any) => void, timeout = 0) => {
+    let timeoutObj: number | undefined = undefined;
 
     return {
         run: (...args: any) => {
